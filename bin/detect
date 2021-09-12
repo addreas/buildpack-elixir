@@ -4,3 +4,28 @@ set -eo pipefail
 if [[ ! -f mix.exs ]]; then
   exit 100
 fi
+
+
+plan=$2
+otp_version=24.0.6
+elixir_version=1.12.3
+
+if [[ -f .otp-version ]]; then
+    otp_version=$(cat .otp-version | tr -d '[:space:]')
+fi
+
+if [[ -f .elixir-version ]]; then
+    elixir_version=$(cat .elixir-version | tr -d '[:space:]')
+fi
+
+cat <<EOF > "$plan"
+provides = [
+    { name = "otp" },
+    { name = "elixir" }
+]
+
+requires = [
+    { name = "otp", metadata = { version = "$otp_version" } },
+    { name = "elixir", metadata = { version = "$elixir_version" } }
+]
+EOF

@@ -1,12 +1,12 @@
 # Buildpack API version
-api = "0.2"
+api = "0.5"
 
 # Buildpack ID and metadata
 [buildpack]
 id = "app.elixir-buildpack"
-version = "0.0.1"
+version = "0.0.2"
 name = "Elixir Buildpack"
 
-# Stacks that the buildpack will work with
 [[stacks]]
-id = "heroku-18"
+id = "io.buildpacks.stacks.bionic"
+mixins = ["wget", "unzip"]

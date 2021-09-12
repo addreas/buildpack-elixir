@@ -3,51 +3,126 @@ set -eo pipefail
 
 echo "---> Elixir Buildpack"
 
-# TODO: make these settable.
 # 1. GET ARGS
 layersdir=$1
-otp_version=23.1.4
-elixir_version=1.11.2
+plan=$3
+otp_version=$(cat "$plan" | yj -t | jq -r '.entries[] | select(.name == "otp") | .metadata.version')
+elixir_version=$(cat "$plan" | yj -t | jq -r '.entries[] | select(.name == "elixir") | .metadata.version')
 
 # 2. DOWNLOAD OTP
-echo "---> Downloading and extracting OTP"
 otplayer="$layersdir/otp"
-mkdir -p "$otplayer"
-otp_url="https://github.com/elixir-buildpack/heroku-otp/releases/download/$otp_version/heroku-18.tar.gz"
-wget -q -O - "$otp_url" | tar -xzf - -C "$otplayer"
-mv "$otplayer/OTP-$otp_version"/* "$otplayer"
-rm -r "$otplayer/OTP-$otp_version"
-"$otplayer"/Install -minimal "$otplayer" > /dev/null
+existing_otp_version=$(cat "$otplayer.toml" 2>/dev/null | yj -t | jq -r .metadata.version || echo 'DOES_NOT_EXIST')
+if [[ $existing_otp_version == $otp_version ]] ; then
+    echo "---> Using existing OTP $otp_version"
+else
+    mkdir -p "$otplayer"
+    echo "---> Downloading and extracting OTP $opt_version"
+    otp_url="https://repo.hex.pm/builds/otp/ubuntu-18.04/OTP-$otp_version.tar.gz"
+    wget -q -O - "$otp_url" | tar -xzf - -C "$otplayer"
+    mv "$otplayer/OTP-$otp_version"/* "$otplayer"
+    rm -r "$otplayer/OTP-$otp_version"
+    "$otplayer"/Install -minimal "$otplayer" > /dev/null
+
+    cat <<EOF > "$otplayer.toml"
+launch = true
+build = true
+cache = true
+
+[metadata]
+version = "${otp_version}"
+url = "${otp_url}"
+EOF
+
+fi
 
 # 3. DOWNLOAD ELIXIR
-echo "---> Downloading and extracting Elixir"
-short_otp_version=$(echo "$otp_version" | awk 'match($0, /^[0-9][0-9]/) { print substr( $0, RSTART, RLENGTH )}')
-elixirlayer="$layersdir"/elixir
-mkdir -p "$elixirlayer"
-elixir_url="https://repo.hex.pm/builds/elixir/v$elixir_version-otp-$short_otp_version.zip"
-wget -q -O "$elixirlayer/elixir.zip" "$elixir_url"
-unzip -q "$elixirlayer/elixir.zip" -d "$elixirlayer"
-rm "$elixirlayer/elixir.zip"
-chmod +x "$elixirlayer/bin"/*
+elixirlayer="$layersdir/elixir"
+existing_elixir_version=$(cat "$elixirlayer.toml" 2>/dev/null | yj -t | jq -r .metadata.version || echo 'DOES_NOT_EXIST')
+if [[ $existing_elixir_version == $elixir_version ]] ; then
+    echo "---> Using existing Elixir $elixir_version"
+else
+    echo "---> Downloading and extracting Elixir $elixir_version"
+    short_otp_version=$(echo "$otp_version" | awk 'match($0, /^[0-9][0-9]/) { print substr( $0, RSTART, RLENGTH )}')
+    mkdir -p "$elixirlayer"
+    elixir_url="https://repo.hex.pm/builds/elixir/v$elixir_version-otp-$short_otp_version.zip"
+    wget -q -O "$elixirlayer/elixir.zip" "$elixir_url"
+    unzip -q "$elixirlayer/elixir.zip" -d "$elixirlayer"
+    rm "$elixirlayer/elixir.zip"
+    chmod +x "$elixirlayer/bin"/*
+    cat <<EOF > "$elixirlayer.toml"
+launch = true
+build = true
+cache = true
 
-# 4. MAKE ERLANG and ELIXIR AVAILABLE DURING LAUNCH
-echo -e 'launch = true' > "$otplayer.toml"
-echo -e 'launch = true' > "$elixirlayer.toml"
+[metadata]
+version = "${elixir_version}"
+url = "${elixir_url}"
+EOF
 
-# 5. MAKE ERLANG AND ELIXIR AVAILABLE TO THIS SCRIPT
+fi
+
+# 4. MAKE ERLANG AND ELIXIR AVAILABLE TO THIS SCRIPT
 export PATH="$otplayer/bin":"$elixirlayer/bin":$PATH
 export LANG=C.UTF-8
 
-# 6. SETUP REBAR AND HEX
-echo "---> Installing Rebar"
-mix local.rebar --force > /dev/null
-echo "---> Installing Hex"
-mix local.hex --force > /dev/null
+# 5. SETUP REBAR AND HEX
+mixhomelayer="$layersdir/mixhome"
+export MIX_HOME=$mixhomelayer
 
-# 7. INSTALL AND COMPILE PACKAGES
-echo "---> Installing and compiling packages"
-mix do deps.get, deps.compile
+existing_mixhome_version=$(cat "$mixhomelayer.toml" 2>/dev/null | yj -t | jq -r .metadata.version || echo 'DOES_NOT_EXIST')
 
-# 8. COMPILE PROJECT
+if [[ $existing_mixhome_version != $elixir_version ]] ; then
+    echo "---> Installing Rebar"
+    mix local.rebar --force > /dev/null
+    echo "---> Installing Hex"
+    mix local.hex --force > /dev/null
+
+    cat <<EOF > "$mixhomelayer.toml"
+launch = true
+build = true
+cache = true
+
+[metadata]
+version = "${elixir_version}"
+EOF
+fi
+
+
+# 6. INSTALL AND COMPILE PACKAGES
+mixdepslayer="$layersdir/mixdeps"
+export HEX_HOME="$mixdepslayer/hex"
+local_mixdeps_checksum=$((sha256sum mix.lock >/dev/null 2>&1 || echo 'DOES_NOT_EXIST') | cut -d ' ' -f 1)
+remote_mixdeps_checksum=$(cat "$mixdepslayer.toml" 2>/dev/null | yj -t | jq -r .metadata.checksum || echo 'DOES_NOT_EXIST')
+
+if [[ -f mix.lock && $local_mixdeps_checksum == $remote_mixdeps_checksum ]] ; then
+    echo "---> Reusing packages"
+    cp -r "$mixdepslayer/deps" .
+    cp -r "$mixdepslayer/_build" .
+else
+    echo "---> Installing and compiling packages"
+    mkdir -p "$mixdepslayer"
+    cat <<EOF > "$mixdepslayer.toml"
+launch = true
+build = true
+cache = true
+
+[metadata]
+checksum = "$local_mixdeps_checksum"
+EOF
+    mix "do" deps.get, deps.compile
+    cp -r deps $mixdepslayer
+    cp -r _build $mixdepslayer
+fi
+
+# 7. COMPILE PROJECT
 echo "---> Compiling project"
 mix compile
+
+
+# 8. SET DEFAULT START COMMAND
+cat > "$layersdir/launch.toml" <<EOL
+[[processes]]
+type = "web"
+command = "mix run --no-halt"
+EOL
+
