@@ -11,6 +11,10 @@ elixir_version=$(cat "$plan" | yj -t | jq -r '.entries[] | select(.name == "elix
 
 # 2. DOWNLOAD OTP
 otplayer="$layersdir/otp"
+export LANG=C.UTF-8
+mkdir -p "$otplayer/env"
+echo -n $LANG >  "$otplayer/env/LANG"
+
 existing_otp_version=$(cat "$otplayer.toml" 2>/dev/null | yj -t | jq -r .metadata.version || echo 'DOES_NOT_EXIST')
 if [[ $existing_otp_version == $otp_version ]] ; then
     echo "---> Using existing OTP $otp_version"
@@ -49,6 +53,7 @@ else
     unzip -q "$elixirlayer/elixir.zip" -d "$elixirlayer"
     rm "$elixirlayer/elixir.zip"
     chmod +x "$elixirlayer/bin"/*
+
     cat <<EOF > "$elixirlayer.toml"
 launch = true
 build = true
@@ -63,11 +68,13 @@ fi
 
 # 4. MAKE ERLANG AND ELIXIR AVAILABLE TO THIS SCRIPT
 export PATH="$otplayer/bin":"$elixirlayer/bin":$PATH
-export LANG=C.UTF-8
 
 # 5. SETUP REBAR AND HEX
 mixhomelayer="$layersdir/mixhome"
 export MIX_HOME=$mixhomelayer
+echo "---> Adding MIX_HOME variable"
+mkdir -p "$mixhomelayer/env"
+echo -n "$MIX_HOME" > "$mixhomelayer/env/MIX_HOME"
 
 existing_mixhome_version=$(cat "$mixhomelayer.toml" 2>/dev/null | yj -t | jq -r .metadata.version || echo 'DOES_NOT_EXIST')
 
@@ -91,6 +98,10 @@ fi
 # 6. INSTALL AND COMPILE PACKAGES
 mixdepslayer="$layersdir/mixdeps"
 export HEX_HOME="$mixdepslayer/hex"
+echo "---> Adding HEX_HOME variable"
+mkdir -p "$mixdepslayer/env"
+echo -n "$HEX_HOME" > "$mixdepslayer/env/HEX_HOME"
+
 local_mixdeps_checksum=$((sha256sum mix.lock >/dev/null 2>&1 || echo 'DOES_NOT_EXIST') | cut -d ' ' -f 1)
 remote_mixdeps_checksum=$(cat "$mixdepslayer.toml" 2>/dev/null | yj -t | jq -r .metadata.checksum || echo 'DOES_NOT_EXIST')
 
@@ -100,7 +111,10 @@ if [[ -f mix.lock && $local_mixdeps_checksum == $remote_mixdeps_checksum ]] ; th
     cp -r "$mixdepslayer/_build" .
 else
     echo "---> Installing and compiling packages"
-    mkdir -p "$mixdepslayer"
+    mix "do" deps.get, deps.compile
+    cp -r deps $mixdepslayer
+    cp -r _build $mixdepslayer
+
     cat <<EOF > "$mixdepslayer.toml"
 launch = true
 build = true
@@ -109,9 +123,6 @@ cache = true
 [metadata]
 checksum = "$local_mixdeps_checksum"
 EOF
-    mix "do" deps.get, deps.compile
-    cp -r deps $mixdepslayer
-    cp -r _build $mixdepslayer
 fi
 
 # 7. COMPILE PROJECT
@@ -120,9 +131,9 @@ mix compile
 
 
 # 8. SET DEFAULT START COMMAND
-cat > "$layersdir/launch.toml" <<EOL
+cat > "$layersdir/launch.toml" <<EOF
 [[processes]]
 type = "web"
-command = "mix run --no-halt"
-EOL
-
+command = "mix"
+args = ["run", "--no-halt"]
+EOF

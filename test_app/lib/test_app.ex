@@ -1,18 +1,9 @@
 defmodule TestApp do
-  @moduledoc """
-  Documentation for `TestApp`.
-  """
+  use Application
 
-  @doc """
-  Hello world.
+  def start(_type, _args) do
+    IO.inspect System.get_env(), limit: :infinity
 
-  ## Examples
-
-      iex> TestApp.hello()
-      :world
-
-  """
-  def hello do
-    :world
+    Supervisor.start_link([], strategy: :one_for_one)
   end
 end
