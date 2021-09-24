@@ -71,9 +71,11 @@ export PATH="$otplayer/bin":"$elixirlayer/bin":$PATH
 
 # 5. SETUP REBAR AND HEX
 mixhomelayer="$layersdir/mixhome"
+export MIX_ENV=prod
 export MIX_HOME=$mixhomelayer
-echo "---> Adding MIX_HOME variable"
+echo "---> Adding MIX_ENV=prod and MIX_HOME=$mixhomelayer"
 mkdir -p "$mixhomelayer/env"
+echo -n "$MIX_ENV" > "$mixhomelayer/env/MIX_ENV"
 echo -n "$MIX_HOME" > "$mixhomelayer/env/MIX_HOME"
 
 existing_mixhome_version=$(cat "$mixhomelayer.toml" 2>/dev/null | yj -t | jq -r .metadata.version || echo 'DOES_NOT_EXIST')
@@ -98,7 +100,7 @@ fi
 # 6. INSTALL AND COMPILE PACKAGES
 mixdepslayer="$layersdir/mixdeps"
 export HEX_HOME="$mixdepslayer/hex"
-echo "---> Adding HEX_HOME variable"
+echo "---> Adding HEX_HOME=$mixdepslayer"
 mkdir -p "$mixdepslayer/env"
 echo -n "$HEX_HOME" > "$mixdepslayer/env/HEX_HOME"
 
@@ -129,11 +131,30 @@ fi
 echo "---> Compiling project"
 mix compile
 
+if [[ -n $RELEASE_NAME ]] ; then
+    echo "---> Creating release $RELEASE_NAME"
+    mix release $RELEASE_NAME
+    releaselayer="$layersdir/release"
+    mkdir "$releaselayer"
+    mv _build/prod/rel/$RELEASE_NAME/* "$releaselayer"
 
-# 8. SET DEFAULT START COMMAND
-cat > "$layersdir/launch.toml" <<EOF
+    cat <<EOF > "$releaselayer.toml"
+launch = true
+EOF
+    # 8. SET DEFAULT START COMMAND
+    cat > "$layersdir/launch.toml" <<EOF
+[[processes]]
+type = "web"
+command = "$RELEASE_NAME"
+args = ["start"]
+EOF
+else
+    # 8. SET DEFAULT START COMMAND
+    cat > "$layersdir/launch.toml" <<EOF
 [[processes]]
 type = "web"
 command = "mix"
 args = ["run", "--no-halt"]
 EOF
+fi
+
