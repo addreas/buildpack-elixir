@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 set -eo pipefail
-
 echo "---> Elixir Buildpack"
 
 # 1. GET ARGS
@@ -131,7 +130,7 @@ fi
 # 7. COMPILE PROJECT
 echo "---> Compiling project"
 mix compile
-mix assets.deploy
+mix assets.deploy || true
 
 if [[ -n $RELEASE_NAME ]] ; then
     echo "---> Creating release $RELEASE_NAME"
