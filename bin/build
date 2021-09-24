@@ -109,13 +109,14 @@ remote_mixdeps_checksum=$(cat "$mixdepslayer.toml" 2>/dev/null | yj -t | jq -r .
 
 if [[ -f mix.lock && $local_mixdeps_checksum == $remote_mixdeps_checksum ]] ; then
     echo "---> Reusing packages"
-    cp -r "$mixdepslayer/deps" .
-    cp -r "$mixdepslayer/_build" .
+    cp -rnu "$mixdepslayer/deps" .
+    cp -rnu "$mixdepslayer/_build" .
 else
     echo "---> Installing and compiling packages"
+    rm -rf "$mixdepslayer"
     mix "do" deps.get, deps.compile
-    cp -r deps $mixdepslayer
-    cp -r _build $mixdepslayer
+    cp -r deps "$mixdepslayer"
+    cp -r _build "$mixdepslayer"
 
     cat <<EOF > "$mixdepslayer.toml"
 launch = true
@@ -130,6 +131,7 @@ fi
 # 7. COMPILE PROJECT
 echo "---> Compiling project"
 mix compile
+mix assets.deploy
 
 if [[ -n $RELEASE_NAME ]] ; then
     echo "---> Creating release $RELEASE_NAME"
@@ -154,7 +156,7 @@ else
 [[processes]]
 type = "web"
 command = "mix"
-args = ["run", "--no-halt"]
+args = ["run", "--no-deps-check", "--no-halt"]
 EOF
 fi
 
