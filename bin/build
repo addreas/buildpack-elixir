@@ -131,16 +131,16 @@ fi
 echo "---> Compiling project"
 mix compile
 
-if [[ -n BP_MIX_DO ]]; then
+if [[ -n $BP_MIX_DO ]]; then
     mix "do" $BP_MIX_DO
 fi
 
-if [[ -n $RELEASE_NAME ]] ; then
-    echo "---> Creating release $RELEASE_NAME"
-    mix release $RELEASE_NAME
+if [[ -n $BP_RELEASE_NAME ]] ; then
+    echo "---> Creating release $BP_RELEASE_NAME"
+    mix release $BP_RELEASE_NAME
     releaselayer="$layersdir/release"
     mkdir "$releaselayer"
-    mv _build/prod/rel/$RELEASE_NAME/* "$releaselayer"
+    mv _build/prod/rel/$BP_RELEASE_NAME/* "$releaselayer"
 
     cat <<EOF > "$releaselayer.toml"
 launch = true
@@ -149,7 +149,7 @@ EOF
     cat > "$layersdir/launch.toml" <<EOF
 [[processes]]
 type = "web"
-command = "$RELEASE_NAME"
+command = "$BP_RELEASE_NAME"
 args = ["start"]
 EOF
 else

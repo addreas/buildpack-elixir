@@ -33,6 +33,10 @@ cat <<EOF > "$plan"
   name = "elixir"
   [requires.metadata]
     version = "$elixir_version"
+EOF
+
+if [[ -n $BP_NODE_PROJECT_PATH ]]; then
+    cat <<EOF >> "$plan"
 [[requires]]
   name = "node"
   [requires.metadata]
@@ -42,3 +46,5 @@ cat <<EOF > "$plan"
 [[requires]]
   name = "node_modules"
 EOF
+fi
+
