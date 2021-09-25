@@ -130,7 +130,10 @@ fi
 # 7. COMPILE PROJECT
 echo "---> Compiling project"
 mix compile
-mix assets.deploy || true
+
+if [[ -n BP_MIX_DO ]]; then
+    mix "do" $BP_MIX_DO
+fi
 
 if [[ -n $RELEASE_NAME ]] ; then
     echo "---> Creating release $RELEASE_NAME"

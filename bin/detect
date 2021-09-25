@@ -19,13 +19,26 @@ if [[ -f .elixir-version ]]; then
 fi
 
 cat <<EOF > "$plan"
-provides = [
-    { name = "otp" },
-    { name = "elixir" }
-]
+[[provides]]
+  name = "otp"
+[[provides]]
+  name = "elixir"
 
-requires = [
-    { name = "otp", metadata = { version = "$otp_version" } },
-    { name = "elixir", metadata = { version = "$elixir_version" } }
-]
+
+[[requires]]
+  name = "otp"
+  [requires.metadata]
+    version = "$otp_version"
+[[requires]]
+  name = "elixir"
+  [requires.metadata]
+    version = "$elixir_version"
+[[requires]]
+  name = "node"
+  [requires.metadata]
+    build = true
+[[requires]]
+  name = "npm"
+[[requires]]
+  name = "node_modules"
 EOF
