@@ -3,8 +3,8 @@ api = "0.5"
 
 # Buildpack ID and metadata
 [buildpack]
-id = "app.elixir-buildpack"
-version = "0.0.7"
+id = "addreas/elixir-app"
+version = "0.0.8"
 name = "Elixir Buildpack"
 
 [[stacks]]

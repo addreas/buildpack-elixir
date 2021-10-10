@@ -142,19 +142,21 @@ if [[ -n $BP_RELEASE_NAME ]] ; then
     mkdir "$releaselayer"
     mv _build/prod/rel/$BP_RELEASE_NAME/* "$releaselayer"
 
+    echo "---> Setting launch command to \`$BP_RELEASE_NAME\`"
     cat <<EOF > "$releaselayer.toml"
 launch = true
 EOF
     # 8. SET DEFAULT START COMMAND
-    cat > "$layersdir/launch.toml" <<EOF
+    cat <<EOF > "$layersdir/launch.toml"
 [[processes]]
 type = "web"
 command = "$BP_RELEASE_NAME"
 args = ["start"]
 EOF
 else
+    echo "---> Setting launch command to \`mix run --no-deps-check --ho-halt\`"
     # 8. SET DEFAULT START COMMAND
-    cat > "$layersdir/launch.toml" <<EOF
+    cat <<EOF > "$layersdir/launch.toml"
 [[processes]]
 type = "web"
 command = "mix"
